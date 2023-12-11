@@ -47,10 +47,7 @@ def generate_signature(use_rsa_authentication, secret, param_str):
         )
         return encoded_signature.decode()
 
-    if not use_rsa_authentication:
-        return generate_hmac()
-    else:
-        return generate_rsa()
+    return generate_hmac() if not use_rsa_authentication else generate_rsa()
 
 
 @dataclass
@@ -140,7 +137,7 @@ class _V5HTTPManager:
         if method == "GET":
             payload = "&".join(
                 [
-                    str(k) + "=" + str(v)
+                    f"{str(k)}={str(v)}"
                     for k, v in sorted(parameters.items())
                     if v is not None
                 ]
@@ -166,12 +163,7 @@ class _V5HTTPManager:
 
     @staticmethod
     def _verify_string(params, key):
-        if key in params:
-            if not isinstance(params[key], str):
-                return False
-            else:
-                return True
-        return True
+        return isinstance(params[key], str) if key in params else True
 
     def _submit_request(self, method=None, path=None, query=None, auth=False):
         """
@@ -237,7 +229,6 @@ class _V5HTTPManager:
             else:
                 headers = {}
 
-            # Log the request.
             if self.log_requests:
                 if req_params:
                     self.logger.debug(
@@ -253,7 +244,7 @@ class _V5HTTPManager:
                 if req_params:
                     r = self.client.prepare_request(
                         requests.Request(
-                            method, path + f"?{req_params}", headers=headers
+                            method, f"{path}?{req_params}", headers=headers
                         )
                     )
                 else:
@@ -271,19 +262,17 @@ class _V5HTTPManager:
             try:
                 s = self.client.send(r, timeout=self.timeout)
 
-            # If requests fires an error, retry.
             except (
                 requests.exceptions.ReadTimeout,
                 requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
             ) as e:
-                if self.force_retry:
-                    self.logger.error(f"{e}. {retries_remaining}")
-                    time.sleep(self.retry_delay)
-                    continue
-                else:
+                if not self.force_retry:
                     raise e
 
+                self.logger.error(f"{e}. {retries_remaining}")
+                time.sleep(self.retry_delay)
+                continue
             # Check HTTP status code before trying to decode JSON.
             if s.status_code != 200:
                 if s.status_code == 403:
@@ -320,10 +309,10 @@ class _V5HTTPManager:
                     )
 
             ret_code = "retCode"
-            ret_msg = "retMsg"
-
             # If Bybit returns an error, raise.
             if s_json[ret_code]:
+                ret_msg = "retMsg"
+
                 # Generate error message.
                 error_msg = f"{s_json[ret_msg]} (ErrCode: {s_json[ret_code]})"
 
@@ -337,8 +326,6 @@ class _V5HTTPManager:
                         error_msg += ". Added 2.5 seconds to recv_window"
                         recv_window += 2500
 
-                    # 10006, rate limit error; wait until
-                    # X-Bapi-Limit-Reset-Timestamp and retry.
                     elif s_json[ret_code] == 10006:
                         self.logger.error(
                             f"{error_msg}. Hit the API rate limit. "
@@ -349,7 +336,7 @@ class _V5HTTPManager:
                         limit_reset_time = int(s.headers["X-Bapi-Limit-Reset-Timestamp"])
                         limit_reset_str = dt.fromtimestamp(limit_reset_time / 10**3).strftime(
                             "%H:%M:%S.%f")[:-3]
-                        delay_time = (int(limit_reset_time) - _helpers.generate_timestamp()) / 10**3
+                        delay_time = (limit_reset_time - _helpers.generate_timestamp()) / 10**3
                         error_msg = (
                             f"API rate limit will reset at {limit_reset_str}. "
                             f"Sleeping for {int(delay_time * 10**3)} milliseconds"
@@ -360,10 +347,7 @@ class _V5HTTPManager:
                     time.sleep(delay_time)
                     continue
 
-                elif s_json[ret_code] in self.ignore_codes:
-                    pass
-
-                else:
+                elif s_json[ret_code] not in self.ignore_codes:
                     raise InvalidRequestError(
                         request=f"{method} {path}: {req_params}",
                         message=s_json[ret_msg],

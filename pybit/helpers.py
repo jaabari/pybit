@@ -2,10 +2,7 @@ import logging
 
 
 def _opposite_side(side):
-    if side == "Buy":
-        return "Sell"
-    else:
-        return "Buy"
+    return "Sell" if side == "Buy" else "Buy"
 
 
 class Helpers:

@@ -52,8 +52,8 @@ class HTTPTest(unittest.TestCase):
 
 class WebSocketTest(unittest.TestCase):
     # A very simple test to ensure we're getting something from WS.
-    def _callback_function(msg):
-        print(msg)
+    def _callback_function(self):
+        print(self)
 
     def test_websocket(self):
         self.assertNotEqual(
@@ -83,8 +83,8 @@ class WebSocketTest(unittest.TestCase):
             
 class PrivateWebSocketTest(unittest.TestCase):
     # Connect to private websocket and see if we can auth.
-    def _callback_function(msg):
-        print(msg)
+    def _callback_function(self):
+        print(self)
     
     def test_private_websocket_connect(self):
         ws_private = WebSocket(

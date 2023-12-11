@@ -196,7 +196,7 @@ class WebSocket(_V5WebSocketManager):
             https://bybit-exchange.github.io/docs/v5/websocket/public/trade
         """
         self._validate_public_topic()
-        topic = f"publicTrade." + "{symbol}"
+        topic = "publicTrade." + "{symbol}"
         self.subscribe(topic, callback, symbol)
 
     def ticker_stream(self, symbol: (str, list), callback):

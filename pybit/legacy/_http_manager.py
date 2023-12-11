@@ -27,11 +27,7 @@ class _HTTPManager:
         """Initializes the HTTP class."""
 
         # Set the endpoint.
-        if endpoint is None:
-            self.endpoint = "https://api.bybit.com"
-        else:
-            self.endpoint = endpoint
-
+        self.endpoint = "https://api.bybit.com" if endpoint is None else endpoint
         # Setup logger.
 
         self.logger = logging.getLogger(__name__)
@@ -67,16 +63,12 @@ class _HTTPManager:
             self.retry_codes = retry_codes
 
         # Set whitelist of non-fatal Bybit status codes to ignore.
-        if ignore_codes is None:
-            self.ignore_codes = set()
-        else:
-            self.ignore_codes = ignore_codes
-
+        self.ignore_codes = set() if ignore_codes is None else ignore_codes
         # Initialize requests session.
         self.client = requests.Session()
         self.client.headers.update(
             {
-                "User-Agent": "pybit-" + VERSION,
+                "User-Agent": f"pybit-{VERSION}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             }
@@ -116,8 +108,11 @@ class _HTTPManager:
 
         # Sort dictionary alphabetically to create querystring.
         _val = "&".join(
-            [str(k) + "=" + str(v) for k, v in sorted(params.items()) if
-             (k != "sign") and (v is not None)]
+            [
+                f"{str(k)}={str(v)}"
+                for k, v in sorted(params.items())
+                if (k != "sign") and (v is not None)
+            ]
         )
 
         # Bug fix. Replaces all capitalized booleans with lowercase.
@@ -148,12 +143,7 @@ class _HTTPManager:
 
     @staticmethod
     def _verify_string(params, key):
-        if key in params:
-            if not isinstance(params[key], str):
-                return False
-            else:
-                return True
-        return True
+        return isinstance(params[key], str) if key in params else True
 
     def _submit_request(self, method=None, path=None, query=None, auth=False):
         """
@@ -247,56 +237,57 @@ class _HTTPManager:
                     requests.Request(method, path, params=req_params,
                                      headers=headers)
                 )
+            elif "spot" in path:
+                full_param_str = "&".join(
+                    [
+                        f"{str(k)}={str(v)}"
+                        for k, v in sorted(query.items())
+                        if v is not None
+                    ]
+                )
+                headers = {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
+                r = self.client.prepare_request(
+                    requests.Request(
+                        method, f"{path}?{full_param_str}", headers=headers
+                    )
+                )
+            elif "usdc" in path:
+                headers = {
+                    "Content-Type": "application/json",
+                    "X-BAPI-API-KEY": self.api_key,
+                    "X-BAPI-SIGN": signature,
+                    "X-BAPI-SIGN-TYPE": "2",
+                    "X-BAPI-TIMESTAMP": str(usdc_timestamp),
+                    "X-BAPI-RECV-WINDOW": str(recv_window)
+                }
+                r = self.client.prepare_request(
+                    requests.Request(method, path,
+                                     data=json.dumps(req_params),
+                                     headers=headers)
+                )
             else:
-                if "spot" in path:
-                    full_param_str = "&".join(
-                        [str(k) + "=" + str(v) for k, v in
-                         sorted(query.items()) if v is not None]
-                    )
-                    headers = {
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    }
-                    r = self.client.prepare_request(
-                        requests.Request(method, path + f"?{full_param_str}",
-                                         headers=headers)
-                    )
-                elif "usdc" in path:
-                    headers = {
-                        "Content-Type": "application/json",
-                        "X-BAPI-API-KEY": self.api_key,
-                        "X-BAPI-SIGN": signature,
-                        "X-BAPI-SIGN-TYPE": "2",
-                        "X-BAPI-TIMESTAMP": str(usdc_timestamp),
-                        "X-BAPI-RECV-WINDOW": str(recv_window)
-                    }
-                    r = self.client.prepare_request(
-                        requests.Request(method, path,
-                                         data=json.dumps(req_params),
-                                         headers=headers)
-                    )
-                else:
-                    r = self.client.prepare_request(
-                        requests.Request(method, path,
-                                         data=json.dumps(req_params))
-                    )
+                r = self.client.prepare_request(
+                    requests.Request(method, path,
+                                     data=json.dumps(req_params))
+                )
 
             # Attempt the request.
             try:
                 s = self.client.send(r, timeout=self.timeout)
 
-            # If requests fires an error, retry.
             except (
                 requests.exceptions.ReadTimeout,
                 requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError
             ) as e:
-                if self.force_retry:
-                    self.logger.error(f"{e}. {retries_remaining}")
-                    time.sleep(self.retry_delay)
-                    continue
-                else:
+                if not self.force_retry:
                     raise e
 
+                self.logger.error(f"{e}. {retries_remaining}")
+                time.sleep(self.retry_delay)
+                continue
             # Check HTTP status code before trying to decode JSON.
             if s.status_code != 200:
                 if s.status_code == 403:
@@ -378,12 +369,7 @@ class _HTTPManager:
                     # Log the error.
                     self.logger.error(f"{error_msg}. {retries_remaining}")
                     time.sleep(err_delay)
-                    continue
-
-                elif s_json[ret_code] in self.ignore_codes:
-                    pass
-
-                else:
+                elif s_json[ret_code] not in self.ignore_codes:
                     logging.error(f"Request failed. Response: {s_json}")
                     raise InvalidRequestError(
                         request=f"{method} {path}: {req_params}",
@@ -391,11 +377,10 @@ class _HTTPManager:
                         status_code=s_json[ret_code],
                         time=dt.utcnow().strftime("%H:%M:%S")
                     )
+            elif self.record_request_time:
+                return s_json, s.elapsed
             else:
-                if self.record_request_time:
-                    return s_json, s.elapsed
-                else:
-                    return s_json
+                return s_json
 
     def api_key_info(self):
         """
@@ -406,8 +391,8 @@ class _HTTPManager:
 
         return self._submit_request(
             method="GET",
-            path=self.endpoint + "/v2/private/account/api-key",
-            auth=True
+            path=f"{self.endpoint}/v2/private/account/api-key",
+            auth=True,
         )
 
 
@@ -423,8 +408,8 @@ class _USDCHTTPManager(_HTTPManager):
 
         return self._submit_request(
             method="GET",
-            path=self.endpoint + "/option/usdc/openapi/public/v1/query-trade-latest",
-            query=kwargs
+            path=f"{self.endpoint}/option/usdc/openapi/public/v1/query-trade-latest",
+            query=kwargs,
         )
 
     def get_active_order(self, **kwargs):
@@ -569,11 +554,7 @@ class _V3HTTPManager:
         """Initializes the HTTP class."""
 
         # Set the endpoint.
-        if endpoint is None:
-            self.endpoint = "https://api.bybit.com"
-        else:
-            self.endpoint = endpoint
-
+        self.endpoint = "https://api.bybit.com" if endpoint is None else endpoint
         # Setup logger.
 
         self.logger = logging.getLogger(__name__)
@@ -609,16 +590,12 @@ class _V3HTTPManager:
             self.retry_codes = retry_codes
 
         # Set whitelist of non-fatal Bybit status codes to ignore.
-        if ignore_codes is None:
-            self.ignore_codes = set()
-        else:
-            self.ignore_codes = ignore_codes
-
+        self.ignore_codes = set() if ignore_codes is None else ignore_codes
         # Initialize requests session.
         self.client = requests.Session()
         self.client.headers.update(
             {
-                "User-Agent": "pybit-" + VERSION,
+                "User-Agent": f"pybit-{VERSION}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             }
@@ -656,8 +633,11 @@ class _V3HTTPManager:
 
         if method == "GET":
             payload = "&".join(
-                [str(k) + "=" + str(v) for k, v in
-                 sorted(parameters.items()) if v is not None]
+                [
+                    f"{str(k)}={str(v)}"
+                    for k, v in sorted(parameters.items())
+                    if v is not None
+                ]
             )
             return payload
         else:
@@ -682,12 +662,7 @@ class _V3HTTPManager:
 
     @staticmethod
     def _verify_string(params, key):
-        if key in params:
-            if not isinstance(params[key], str):
-                return False
-            else:
-                return True
-        return True
+        return isinstance(params[key], str) if key in params else True
 
     def _submit_request(self, method=None, path=None, query=None, auth=False):
         """
