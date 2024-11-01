@@ -96,10 +96,7 @@ class _WebSocketManager:
 
     def is_connected(self):
         try:
-            if self.ws.sock.connected:
-                return True
-            else:
-                return False
+            return bool(self.ws.sock.connected)
         except AttributeError:
             return False
 
@@ -128,11 +125,7 @@ class _WebSocketManager:
 
         # Attempt to connect for X seconds.
         retries = self.retries
-        if retries == 0:
-            infinitely_reconnect = True
-        else:
-            infinitely_reconnect = False
-
+        infinitely_reconnect = retries == 0
         while (
             infinitely_reconnect or retries > 0
         ) and not self.is_connected():
@@ -377,7 +370,7 @@ class _V5WebSocketManager(_WebSocketManager):
                     for level in self.data[topic][side]
                     if level[0] == entry[0]
                 )
-                if price_level_exists and qty_changed:
+                if qty_changed:
                     index = _helpers.find_index(
                         self.data[topic][side], entry, 0
                     )
@@ -444,22 +437,13 @@ class _V5WebSocketManager(_WebSocketManager):
 
     def _handle_incoming_message(self, message):
         def is_auth_message():
-            if (
-                message.get("op") == "auth"
-                or message.get("type") == "AUTH_RESP"
-            ):
-                return True
-            else:
-                return False
+            return message.get("op") == "auth" or message.get("type") == "AUTH_RESP"
 
         def is_subscription_message():
-            if (
+            return (
                 message.get("op") == "subscribe"
                 or message.get("type") == "COMMAND_RESP"
-            ):
-                return True
-            else:
-                return False
+            )
 
         if is_auth_message():
             self._process_auth_message(message)

@@ -85,10 +85,7 @@ class _WebSocketManager:
 
     def is_connected(self):
         try:
-            if self.ws.sock.connected:
-                return True
-            else:
-                return False
+            return bool(self.ws.sock.connected)
         except AttributeError:
             return False
 
@@ -120,17 +117,13 @@ class _WebSocketManager:
         url = url.format(SUBDOMAIN=subdomain, DOMAIN=domain)
         self.endpoint = url
 
-        self.public_v1_websocket = True if url.endswith("v1") else False
-        self.public_v2_websocket = True if url.endswith("v2") else False
-        self.private_websocket = True if url.endswith("/spot/ws") else False
+        self.public_v1_websocket = bool(url.endswith("v1"))
+        self.public_v2_websocket = bool(url.endswith("v2"))
+        self.private_websocket = bool(url.endswith("/spot/ws"))
 
         # Attempt to connect for X seconds.
         retries = self.retries
-        if retries == 0:
-            infinitely_reconnect = True
-        else:
-            infinitely_reconnect = False
-
+        infinitely_reconnect = retries == 0
         while (infinitely_reconnect or retries > 0) and not self.is_connected():
             logger.info(f"WebSocket {self.ws_name} attempting connection...")
             self.ws = websocket.WebSocketApp(
@@ -412,16 +405,10 @@ class _FuturesWebSocketManager(_WebSocketManager):
 
     def _handle_incoming_message(self, message):
         def is_auth_message():
-            if message.get("request", {}).get("op") == "auth":
-                return True
-            else:
-                return False
+            return message.get("request", {}).get("op") == "auth"
 
         def is_subscription_message():
-            if message.get("request", {}).get("op") == "subscribe":
-                return True
-            else:
-                return False
+            return message.get("request", {}).get("op") == "subscribe"
 
         if is_auth_message():
             self._process_auth_message(message)
@@ -480,17 +467,13 @@ class _USDCWebSocketManager(_FuturesWebSocketManager):
 
     def _handle_incoming_message(self, message):
         def is_auth_message():
-            if message.get("type") == "AUTH_RESP":
-                return True
-            else:
-                return False
+            return message.get("type") == "AUTH_RESP"
 
         def is_subscription_message():
-            if message.get("request", {}).get("op") == "subscribe" or \
-                    message.get("type") == "COMMAND_RESP":  # Private sub format
-                return True
-            else:
-                return False
+            return (
+                message.get("request", {}).get("op") == "subscribe"
+                or message.get("type") == "COMMAND_RESP"
+            )
 
         if is_auth_message():
             self._process_auth_message(message)

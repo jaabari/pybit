@@ -49,10 +49,7 @@ def make_public_kwargs(private_kwargs):
 
 
 def are_connections_connected(active_connections):
-    for connection in active_connections:
-        if not connection.is_connected():
-            return False
-    return True
+    return all(connection.is_connected() for connection in active_connections)
 
 
 def is_inverse_contract(symbol: str):

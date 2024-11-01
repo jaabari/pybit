@@ -348,8 +348,7 @@ class WebSocket(_USDCOptionsWebSocketManager):
                 PUBLIC_WSS: self._ws_public_subscribe,
                 PRIVATE_WSS: self._ws_private_subscribe
             })
-        symbol = self._extract_symbol(topic)
-        if symbol:
+        if symbol := self._extract_symbol(topic):
             subscribe(topic, callback, symbol)
         else:
             subscribe(topic, callback)

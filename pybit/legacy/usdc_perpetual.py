@@ -136,8 +136,8 @@ class HTTP(_USDCHTTPManager):
 
         return self._submit_request(
             method="GET",
-            path=self.endpoint + "/perpetual/usdc/openapi/public/v1/open-interest",
-            query=kwargs
+            path=f"{self.endpoint}/perpetual/usdc/openapi/public/v1/open-interest",
+            query=kwargs,
         )
 
     def latest_big_deal(self, **kwargs):
@@ -151,8 +151,8 @@ class HTTP(_USDCHTTPManager):
 
         return self._submit_request(
             method="GET",
-            path=self.endpoint + "/perpetual/usdc/openapi/public/v1/big-deal",
-            query=kwargs
+            path=f"{self.endpoint}/perpetual/usdc/openapi/public/v1/big-deal",
+            query=kwargs,
         )
 
     def long_short_ratio(self, **kwargs):
@@ -166,8 +166,8 @@ class HTTP(_USDCHTTPManager):
 
         return self._submit_request(
             method="GET",
-            path=self.endpoint + "/perpetual/usdc/openapi/public/v1/account-ratio",
-            query=kwargs
+            path=f"{self.endpoint}/perpetual/usdc/openapi/public/v1/account-ratio",
+            query=kwargs,
         )
 
     def place_active_order(self, **kwargs):
@@ -375,8 +375,7 @@ class WebSocket(_USDCWebSocketManager):
                 PUBLIC_WSS: self._ws_public_subscribe,
                 PRIVATE_WSS: self._ws_private_subscribe
             })
-        symbol = self._extract_symbol(topic)
-        if symbol:
+        if symbol := self._extract_symbol(topic):
             subscribe(topic, callback, symbol)
         else:
             subscribe(topic, callback)
